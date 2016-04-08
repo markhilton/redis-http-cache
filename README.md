@@ -1,12 +1,4 @@
----
-title: Redis HTTP cache
-layout: post
-author: markhilton
-permalink: /redis-http-cache/
-source-id: 1606Hd-aKJTyRyBtq1bXnrdyFh8Yv9pj2fD2LiE5u_l0
-published: true
----
-Redis HTTP cache
+# Redis HTTP cache
 
 Redis cache engine for WordPress sites its two components HTTP caching system that speeds up WordPress page serving by leveraging Redis memory cache storage.
 
