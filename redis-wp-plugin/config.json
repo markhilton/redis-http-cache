@@ -1,0 +1,8 @@
+{
+    "host": "redis.host",
+    "port": "6379",
+    "timeout": "1",
+    "security": "",
+    "status": "ON",
+    "exclude": []
+}
