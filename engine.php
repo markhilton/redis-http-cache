@@ -53,7 +53,7 @@ class redis_light
         {
             self::logger('NOCACHE explicitly requested. terminating...');
 
-            header('Redis-cache: no cach requested');
+            header('Redis-cache: no cache request');
 
             return false;
         }
