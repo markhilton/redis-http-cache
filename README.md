@@ -6,7 +6,7 @@ permalink: /redis-http-cache/
 source-id: 1606Hd-aKJTyRyBtq1bXnrdyFh8Yv9pj2fD2LiE5u_l0
 published: true
 ---
-# redis-http-cache
+Redis HTTP cache
 
 Redis cache engine for WordPress sites its two components HTTP caching system that speeds up WordPress page serving by leveraging Redis memory cache storage.
 
@@ -34,7 +34,7 @@ However WordPress plugin is required in order to manage no cache page exceptions
 
 Redis HTTP cache will log its activity into syslog if detects presence of /tmp/.redis.log file. The log information is extensive and may eat up hard drive space quickly, so it is only intended for problem debugging purposes.
 
-### start debugging 
+### Start debugging 
 
 touch /tmp/.redis.log 
 
@@ -42,7 +42,7 @@ to start logging Redis HTTP cache messages into syslog. To preview messages run:
 
 tail -f /var/log/messages or tail -f /var/log/syslog
 
-### stop debugging 
+### Stop debugging 
 
 rm /tmp/.redis.log 
 
