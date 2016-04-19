@@ -76,7 +76,7 @@ class redis_light
          * 3. define URL storage key
          *
          */
-        $config = getcwd().'/wp-content/plugins/redis-light-speed-cache/config.json';
+        $config = getcwd().'/wp-content/plugins/redis-wp-plugin/config.json';
 
         if ($config = @file_get_contents($config)) 
         {
@@ -106,10 +106,9 @@ class redis_light
             self::$redis->auth(self::$config['security']);
         }
 
-
         //
         // build URL key for Redis storage
-        $url = isset($domains[ $_SERVER['HTTP_HOST'] ]['query']) ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
+        $url = (isset(self::$config['query']) and self::$config['query'] != "NO") ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
 
         self::$key = md5($_SERVER['HTTP_HOST'].$url);
 

@@ -193,6 +193,7 @@ class rediscache {
 
 	        $options = json_decode(@file_get_contents(__DIR__.'/config.json'), true);
 
+	        $options['query']   = $_POST['query'];
 	        $options['exclude'] = explode("\r\n", $_POST['exceptions']);
 
 	        if (@file_put_contents(__DIR__.'/config.json', json_encode($options, JSON_PRETTY_PRINT))) {
