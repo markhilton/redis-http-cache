@@ -1,5 +1,4 @@
 <?php
-
 /**
  * WordPress Redis Light Speed Caching Engine
  *
@@ -255,9 +254,9 @@ class redis_light
     public static function callback($buffer)
     {
        // do not store output if empty
-       // bug related to JetPack I think some pages content being store is {"version":"20150408","show_thumbnails":false,"items":[]}
+       // do not store output if starts with { - indicating json object
        // so we dont want to store it in Redis
-       if (trim($buffer) == '' or substr(trim($buffer), 0, 12) == '{"version":"') 
+       if (trim($buffer) == '' or substr(trim($buffer), 0, 1) == '{') 
        {
            return $buffer;
        }

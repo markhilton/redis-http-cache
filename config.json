@@ -1,0 +1,6 @@
+{
+    "host": "redis.host",
+    "port": 6379,
+    "security": null,
+    "timeout": 1
+}

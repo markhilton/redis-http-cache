@@ -10,9 +10,9 @@
 // init predis
 require 'predis/autoload.php';
 
-$config = getcwd().'/wp-content/plugins/redis-light-speed-cache/config.json';
+$json = getcwd().'/wp-content/plugins/redis-light-speed-cache/config.json';
 
-if ($config = @file_get_contents($config)) 
+if ($config = @file_get_contents($json) or $config = @file_get_contents(basename($json))) 
 {
     $config = json_decode($config, true);
 }
