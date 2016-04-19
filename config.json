@@ -1,6 +1,11 @@
 {
     "host": "redis.host",
-    "port": 6379,
-    "security": null,
-    "timeout": 1
+    "port": "6379",
+    "timeout": "1",
+    "security": "",
+    "status": "ON",
+    "exclude": [
+        ""
+    ],
+    "query": "NO"
 }

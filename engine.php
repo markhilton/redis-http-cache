@@ -109,7 +109,7 @@ class redis_light
 
         //
         // build URL key for Redis storage
-        $url = isset($domains[ $_SERVER['HTTP_HOST'] ]['cache_query']) ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
+        $url = isset($domains[ $_SERVER['HTTP_HOST'] ]['query']) ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
 
         self::$key = md5($_SERVER['HTTP_HOST'].$url);
 

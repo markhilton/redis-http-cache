@@ -161,7 +161,7 @@ class rediscache {
 		//
 	    if (isset($_POST['update'])) {
 	        $options = [
-	            'host' => null, 'port' => null, 'timeout' => null, 'security' => null, 'status' => 'OFF', 'exclude' => [],
+	            'host' => null, 'port' => null, 'timeout' => null, 'security' => null, 'status' => 'OFF', 'query' => 'YES', 'exclude' => [],
 	        ];
 
 	        // create default options

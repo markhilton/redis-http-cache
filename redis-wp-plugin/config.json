@@ -4,5 +4,6 @@
     "timeout": "1",
     "security": "",
     "status": "ON",
-    "exclude": []
+    "exclude": [],
+    "cache_query": "no"
 }

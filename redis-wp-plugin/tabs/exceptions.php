@@ -8,6 +8,11 @@
 
 
 <p></p>
-<textarea cols="80" rows="10" name="exceptions"><?php echo join("\r\n", rediscache::$config['exclude']); ?></textarea>
+<p><textarea cols="80" rows="10" name="exceptions"><?php echo join("\r\n", rediscache::$config['exclude']); ?></textarea></p>
+<p>
+	Ignore query parameters: &nbsp;
+    <input type="radio" name="query" value="YES" <?php echo rediscache::$config['status'] != 'NO' ? 'checked' : ''; ?>> YES
+    <input type="radio" name="query" value="NO"  <?php echo rediscache::$config['status'] == 'NO' ? 'checked' : ''; ?>> NO
+</p>
 
 <p><input type="submit" name="exclude" class="button button-primary button-large" value="Exclude"></p>

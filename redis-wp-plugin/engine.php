@@ -103,7 +103,7 @@ class redis_light
 
         //
         // build URL key for Redis storage
-        $url = isset($domains[ $_SERVER['HTTP_HOST'] ]['cache_query']) ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
+        $url = isset($domains[ $_SERVER['HTTP_HOST'] ]['query']) ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
         self::$key = md5($_SERVER['HTTP_HOST'].$url);
 
         self::logger(sprintf('requested URI: %s, key: %s', $url, self::$key));
@@ -229,10 +229,10 @@ class redis_light
      */
     public static function callback($buffer)
     {
-        // do not store output if empty
-        // bug related to JetPack I think some pages content being store is {"version":"20150408","show_thumbnails":false,"items":[]}
-        // so we dont want to store it in Redis
-        if (trim($buffer) == '' or substr(trim($buffer), 0, 12) == '{"version":"') {
+       // do not store output if empty
+       // do not store output if starts with { - indicating json object
+       // so we dont want to store it in Redis
+        if (trim($buffer) == '' or substr(trim($buffer), 0, 1) == '{') {
             return $buffer;
         }
 
