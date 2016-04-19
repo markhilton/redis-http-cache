@@ -108,7 +108,7 @@ class redis_light
 
         //
         // build URL key for Redis storage
-        $url = (isset(self::$config['query']) and self::$config['query'] != "NO") ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
+        $url = (isset(self::$config['query']) and self::$config['query'] == "NO") ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
 
         self::$key = md5($_SERVER['HTTP_HOST'].$url);
 
@@ -119,6 +119,8 @@ class redis_light
         // check URL exceptions
         foreach (self::$config['exclude'] as $exclude) 
         {
+            if (trim($exclude) == '') continue;
+
         	$pattern = sprintf('/%s/', str_replace('/', '\/', $exclude));
 
         	if (preg_match($pattern, $url)) 
