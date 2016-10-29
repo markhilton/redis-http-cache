@@ -52,7 +52,7 @@ class redis_light
         {
             self::logger('NOCACHE explicitly requested. terminating...');
 
-            header('Redis-cache: no cache request');
+            header('Cache: skipping');
 
             return false;
         }
@@ -63,7 +63,7 @@ class redis_light
         {
             self::logger('NOCACHE explicitly requested. terminating...');
 
-            header('Redis-cache: cache disengaged');
+            header('Cache: disengaged');
 
             return false;
         }
@@ -127,7 +127,7 @@ class redis_light
             {
             	self::logger('requested URL listed as a no cache exeption. terminating...');
 
-	            header('Redis-cache: page excluded');
+	            header('Cache: page excluded');
 
             	return false;
             }
@@ -200,7 +200,17 @@ class redis_light
         {
             self::logger('fetching content from the cache. key: '.self::$key);
 
-            header('Redis-cache: fetched from cache');
+            http_response_code(self::$redis->get(self::$key.'-CODE'));
+
+            $headers = json_decode(self::$redis->get(self::$key.'-HEAD'), true);
+
+            if (is_array($headers)) {
+                foreach ($headers as $header) {
+                    header($header);                    
+                }
+            }
+
+            header('Cache: fetched from cache');
 
             die( self::$redis->get(self::$key) );
         }
@@ -210,7 +220,7 @@ class redis_light
         {
             self::logger('rendering page with WordPress');
 
-            header('Redis-cache: storing new data');
+            header('Cache: storing new data');
 
             return true;
         }
@@ -263,8 +273,13 @@ class redis_light
        }
 
         // attempt to store content in the cache
-        if (self::$redis->set(self::$key, $buffer)) 
+        $response_code = http_response_code();
+
+        if (self::$redis->set(self::$key, $buffer) and in_array($response_code, [ '200', '404' ])) 
         {
+            self::$redis->set(self::$key.'-CODE', $response_code);
+            self::$redis->set(self::$key.'-HEAD', json_encode(headers_list()));
+
             // log syslog message if cannot store objects in redis
             self::logger('storing content in the cache. page count: '.self::$redis->dbSize());
         } 

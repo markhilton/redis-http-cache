@@ -102,29 +102,10 @@ class rediscache {
 	        self::$info          = self::$redis->info();
 	        self::$status        = self::$config['status'];
 
-			if (SUBDOMAIN_INSTALL !== true) {
-				global $wpdb;
+            $db = $domains[ $domain ]['id'];
 
-				$multisite = $wpdb->get_col('SELECT domain FROM sp_domain_mapping WHERE blog_id='.get_current_blog_id());
-
-				if (is_array($multisite) and count($multisite) < 1) {
-					$multisite = [ $_SERVER['HTTP_HOST'] ];					
-				}
-
-				foreach ($multisite as $site) {		            
-					if (array_key_exists($site, $domains)) {						
-						$db = $domains[ $site ]['id'];
-
-			            self::$redis->select($db);
-			            self::$info['pages'] = (int) self::$redis->dbSize();
-					}
-				}
-			} else if (isset($domains[ $domain ]['id'])) {
-	            $db = $domains[ $domain ]['id'];
-
-	            self::$redis->select($db);
-	            self::$info['pages'] = (int) self::$redis->dbSize();
-	        }
+            self::$redis->select($db);
+            self::$info['pages'] = (int) self::$redis->dbSize();
 	    } else {
 	        // throw message - cannot connect with redis
 	        rediscache::$class  = 'error';
