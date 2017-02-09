@@ -9,8 +9,7 @@
  * @see http://www.jimwestergren.com/wordpress-with-redis-as-a-frontend-cache/
  */
 
-if (redis_light::cache()) 
-{
+if (redis_light::cache()) {
     define('WP_USE_THEMES', true);
 
     ob_start([ 'redis_light', 'callback' ]);
@@ -24,16 +23,12 @@ if (redis_light::cache())
     die();
 }
 
-
-
-
 class redis_light
 {
     public static $cc     = 0;    // logger step counter
     public static $key    = null; // cache key
     public static $redis  = null; // redis instance
     public static $config = null; // configuration array
-
 
 
     /*
@@ -48,8 +43,7 @@ class redis_light
         //
         // do not run if explicitly requested
         #if (isset($_GET['NOCACHE']) or (isset($_SERVER['HTTP_CACHE_CONTROL']) && $_SERVER['HTTP_CACHE_CONTROL'] == 'max-age=0')) {
-        if (isset($_GET['NOCACHE'])) 
-        {
+        if (isset($_GET['NOCACHE'])) {
             self::logger('NOCACHE explicitly requested. terminating...');
 
             header('Cache: skipping');
@@ -59,8 +53,7 @@ class redis_light
 
         //
         // do not run if request is a POST or user is logged into WordPress
-        if ($_POST or preg_match("/wordpress_logged_in/", var_export($_COOKIE, true))) 
-        {
+        if ($_POST or preg_match("/wordpress_logged_in/", var_export($_COOKIE, true))) {
             self::logger('NOCACHE explicitly requested. terminating...');
 
             header('Cache: disengaged');
@@ -78,13 +71,11 @@ class redis_light
          */
         $config = getcwd().'/wp-content/plugins/redis-wp-plugin/config.json';
 
-        if ($config = @file_get_contents($config)) 
-        {
+        if ($config = @file_get_contents($config)) {
             self::$config = json_decode($config, true);
         }
 
-        if (! is_array(self::$config)) 
-        {
+        if (! is_array(self::$config)) {
             self::$config = self::defaults();
         }
 
@@ -100,9 +91,7 @@ class redis_light
             'timeout' => self::$config['timeout'],
         ]);
 
-
-        if (trim(self::$config['security']) != '') 
-        {
+        if (trim(self::$config['security']) != '') {
             self::$redis->auth(self::$config['security']);
         }
 
@@ -114,25 +103,30 @@ class redis_light
 
         self::logger(sprintf('requested URI: %s, key: %s', $url, self::$key));
 
+        // woo commerce exceptions
+        self::$config['exclude'][] = '/map/*';
+        self::$config['exclude'][] = '/cart/*';
+        self::$config['exclude'][] = '/orders/*';
+        self::$config['exclude'][] = '/checkout/*';
+        self::$config['exclude'][] = '/my-account/*';
 
         //
         // check URL exceptions
-        foreach (self::$config['exclude'] as $exclude) 
-        {
-            if (trim($exclude) == '') continue;
+        foreach (self::$config['exclude'] as $exclude) {
+            if (trim($exclude) == '') {
+                continue;
+            }
 
-        	$pattern = sprintf('/%s/', str_replace('/', '\/', $exclude));
+            $pattern = sprintf('/%s/', str_replace('/', '\/', $exclude));
 
-        	if (preg_match($pattern, $url)) 
-            {
-            	self::logger('requested URL listed as a no cache exeption. terminating...');
+            if (preg_match($pattern, $url)) {
+                self::logger('requested URL listed as a no cache exeption. terminating...');
 
-	            header('Cache: page excluded');
+                header('Cache: page excluded');
 
-            	return false;
+                return false;
             }
         }
-
 
         //
         // connect to Redis
@@ -146,14 +140,10 @@ class redis_light
 
         //
         // connect to domains database
-        try 
-        {
+        try {
             self::$redis->select(0);
             self::logger('connected to Redis cache OK. retrieving domains list');
-        } 
-
-        catch (Exception $e) 
-        {
+        } catch (Exception $e) {
             self::logger('connection to Redis cache FAILED. terminating because of: '.$e->getMessage()."\n");
 
             return false;
@@ -162,18 +152,15 @@ class redis_light
         $domains = json_decode(self::$redis->get('domains'), true);
 
         // fetch redis database ID for current host
-        if (isset($domains[ $_SERVER['HTTP_HOST'] ]['id'])) 
-        {
+        if (isset($domains[ $_SERVER['HTTP_HOST'] ]['id'])) {
             $db = $domains[ $_SERVER['HTTP_HOST'] ]['id'];
 
-            self::logger(sprintf('current domain [id: %d]: %s found in cache. Total domains stored: %d', $db, $_SERVER['HTTP_HOST'], count($domains)));
+            self::logger(sprintf('current domain [id: %d]: %s found in cache. Total hostname(s) stored: %d', $db, $_SERVER['HTTP_HOST'], count($domains)));
         }
 
         // create new redis database if current host does not have one
-        else 
-        {
-            if (! is_array($domains)) 
-            {
+        else {
+            if (! is_array($domains)) {
                 $domains = [];
             }
 
@@ -181,13 +168,18 @@ class redis_light
 
             $domains[ $_SERVER['HTTP_HOST'] ]['id'] = $db;
 
-            self::logger(sprintf('current domain: %s does not exist in cache - creating. Total domains stored: %d', $_SERVER['HTTP_HOST'], count($domains)));
+            self::logger(sprintf('current domain: %s does not exist in cache - creating. Total hostname(s) stored: %d', $_SERVER['HTTP_HOST'], count($domains)));
 
             self::$redis->set('domains', json_encode($domains));
         }
 
-        self::$redis->select($db);
-
+        try {
+            self::$redis->select($db);    
+        } catch (Exception $e) {
+            self::logger(sprintf('ERROR: could not select database: %d for host: %s', $db, $_SERVER['HTTP_HOST']));
+            return false;
+        }
+        
 
         /**
          * cache requests and server cached content
@@ -196,8 +188,7 @@ class redis_light
          * 2. store content into cache if url key does not exist
          *
          */
-        if (self::$redis->exists(self::$key)) 
-        {
+        if (self::$redis->exists(self::$key)) {
             self::logger('fetching content from the cache. key: '.self::$key);
 
             http_response_code(self::$redis->get(self::$key.'-CODE'));
@@ -206,18 +197,17 @@ class redis_light
 
             if (is_array($headers)) {
                 foreach ($headers as $header) {
-                    header($header);                    
+                    header($header);
                 }
             }
 
             header('Cache: fetched from cache');
 
-            die( self::$redis->get(self::$key) );
+            die(self::$redis->get(self::$key));
         }
 
         // cache the page
-        else 
-        {
+        else {
             self::logger('rendering page with WordPress');
 
             header('Cache: storing new data');
@@ -250,11 +240,8 @@ class redis_light
     {
         self::$cc++;
 
-        if (file_exists('/tmp/.redis.log')) 
-        {
-            openlog('Redis Cache Plugin', LOG_CONS | LOG_NDELAY | LOG_PID, LOG_USER | LOG_PERROR);
-            syslog(LOG_INFO, sprintf('STEP %d: %s', self::$cc, $message));
-            closelog();
+        if (file_exists('/usr/share/php/redis.log')) {
+            file_put_contents('/usr/share/php/redis.log', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);
         }
     }
 
@@ -264,28 +251,23 @@ class redis_light
      */
     public static function callback($buffer)
     {
-       // do not store output if empty
+        // do not store output if empty
        // do not store output if starts with { - indicating json object
        // so we dont want to store it in Redis
-       if (trim($buffer) == '' or substr(trim($buffer), 0, 1) == '{') 
-       {
+       if (trim($buffer) == '' or substr(trim($buffer), 0, 1) == '{') {
            return $buffer;
        }
 
         // attempt to store content in the cache
         $response_code = http_response_code();
 
-        if (self::$redis->set(self::$key, $buffer) and in_array($response_code, [ '200', '404' ])) 
-        {
+        if (in_array($response_code, [ '200', '404' ]) and self::$redis->set(self::$key, $buffer)) {
             self::$redis->set(self::$key.'-CODE', $response_code);
             self::$redis->set(self::$key.'-HEAD', json_encode(headers_list()));
 
             // log syslog message if cannot store objects in redis
             self::logger('storing content in the cache. page count: '.self::$redis->dbSize());
-        } 
-
-        else 
-        {
+        } else {
             self::$redis->delete(self::$key);
             self::logger('Redis cannot store data. Memory: '.self::$redis->info('used_memory_human'));
 
