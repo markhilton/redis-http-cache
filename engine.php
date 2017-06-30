@@ -82,6 +82,11 @@ class redis_light
         // self::$redis = new Redis();
         // $connect     = self::$redis->connect(self::$config['host'], self::$config['port'], self::$config['timeout']);
 
+        if (stream_resolve_include_path("predis/autoload.php") === false) {
+            self::logger('Cannot locate PREDIS class, Redis cache will not work');
+            return false;
+        }
+
         require 'predis/autoload.php';
 
         self::$redis = new Predis\Client([
@@ -89,7 +94,7 @@ class redis_light
             'host'    => self::$config['host'],
             'port'    => self::$config['port'],
             'timeout' => self::$config['timeout'],
-        ]);
+        ], [ 'profile' => '3.2' ]);
 
         if (trim(self::$config['security']) != '') {
             self::$redis->auth(self::$config['security']);
@@ -240,8 +245,8 @@ class redis_light
     {
         self::$cc++;
 
-        if (file_exists('/usr/share/php/redis.log')) {
-            file_put_contents('/usr/share/php/redis.log', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);
+        if (isset($_ENV['REDIS_CACHE_LOG']) && $_ENV['REDIS_CACHE_LOG'] == 1) {
+            file_put_contents('php://stderr', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);    
         }
     }
 
@@ -268,12 +273,8 @@ class redis_light
             // log syslog message if cannot store objects in redis
             self::logger('storing content in the cache. page count: '.self::$redis->dbSize());
         } else {
-            self::$redis->delete(self::$key);
+            # self::$redis->delete(self::$key);
             self::logger('Redis cannot store data. Memory: '.self::$redis->info('used_memory_human'));
-
-            openlog('Redis Cache Plugin', LOG_CONS | LOG_NDELAY | LOG_PID, LOG_USER | LOG_PERROR);
-            syslog(LOG_INFO, 'Redis cannot store data. Memory: '.self::$redis->info('used_memory_human'));
-            closelog();
         }
 
         return $buffer;
