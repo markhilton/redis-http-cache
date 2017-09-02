@@ -54,7 +54,12 @@ class rediscache {
         }
 
         if (! is_array(self::$config)) {
-            self::$config = self::defaults();
+            self::$config = [
+            	'host'    => 'localhost',
+            	'port'    => 6379,
+            	'timeout' => 1,
+            	'status'  => 'ON',
+            ];
         }
 	}
 
