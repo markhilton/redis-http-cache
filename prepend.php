@@ -16,8 +16,5 @@ if (isset($_SERVER['SCRIPT_FILENAME']) and isset($_SERVER['DOCUMENT_ROOT']))
 	// declare this constant to avoid WP plugin throw error of not detected snippet
 	define('_REDIS_LIGHT_CACHE_PREPEND', true);
 
-	if (str_replace($_SERVER['DOCUMENT_ROOT'], '', $_SERVER['SCRIPT_FILENAME']) == '/index.php') 
-	{
-		@include 'engine.php';
-	}
+	include_once('engine.php');
 }

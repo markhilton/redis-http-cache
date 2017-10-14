@@ -15,7 +15,7 @@ if (redis_light::cache()) {
     ob_start([ 'redis_light', 'callback' ]);
 
     /** Loads the WordPress Environment and Template */
-    require getcwd().'/wp-blog-header.php';
+    require getcwd() . $_SERVER['SCRIPT_NAME'];
 
     ob_end_flush();
 
@@ -25,10 +25,10 @@ if (redis_light::cache()) {
 
 class redis_light
 {
-    public static $cc     = 0;    // logger step counter
     public static $key    = null; // cache key
     public static $redis  = null; // redis instance
     public static $config = null; // configuration array
+    public static $cookie = '';   // unique user cookie
 
 
     /*
@@ -37,14 +37,15 @@ class redis_light
      */
     public static function cache()
     {
-        self::logger(str_repeat('-', 100));
+        self::$config = self::defaults();
+
         self::logger('Starting Redis caching engine connection...');
 
         //
         // do not run if explicitly requested
         #if (isset($_GET['NOCACHE']) or (isset($_SERVER['HTTP_CACHE_CONTROL']) && $_SERVER['HTTP_CACHE_CONTROL'] == 'max-age=0')) {
-        if (isset($_GET['NOCACHE'])) {
-            self::logger('NOCACHE explicitly requested. terminating...');
+        if (isset($_ENV['PAGECACHE_NOCACHE']) && isset($_GET[ $_ENV['PAGECACHE_NOCACHE'] ])) {
+            self::logger('nocache explicitly requested. terminating...');
 
             header('Cache: skipping');
 
@@ -53,10 +54,24 @@ class redis_light
 
         //
         // do not run if request is a POST or user is logged into WordPress
-        if ($_POST or preg_match("/wordpress_logged_in/", var_export($_COOKIE, true))) {
-            self::logger('NOCACHE explicitly requested. terminating...');
+        if (preg_match("/wordpress_logged_in/", var_export($_COOKIE, true))) {
+            self::logger('POST request - terminating...');
 
             header('Cache: disengaged');
+
+            return false;
+        }
+
+        //
+        // build URL key for Redis storage
+        self::$cookie = isset($_COOKIE['pagecache'])    ? $_COOKIE['pagecache']   : '';
+        $url    = self::$config['query'] == false ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
+
+        // post request will set user unique cache data set
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            self::$cookie = uniqid();
+            setcookie('pagecache', self::$cookie, time() + 60 * 30, '/');
+            self::logger(sprintf('post detected, generating new key cookie: [%s]', self::$cookie));
 
             return false;
         }
@@ -69,15 +84,6 @@ class redis_light
          * 3. define URL storage key
          *
          */
-        $config = getcwd().'/wp-content/plugins/redis-wp-plugin/config.json';
-
-        if ($config = @file_get_contents($config)) {
-            self::$config = json_decode($config, true);
-        }
-
-        if (! is_array(self::$config)) {
-            self::$config = self::defaults();
-        }
 
         // self::$redis = new Redis();
         // $connect     = self::$redis->connect(self::$config['host'], self::$config['port'], self::$config['timeout']);
@@ -96,24 +102,21 @@ class redis_light
             'timeout' => self::$config['timeout'],
         ], [ 'profile' => '3.2' ]);
 
-        if (trim(self::$config['security']) != '') {
+
+        if (! is_null(self::$config['security'])) {
             self::$redis->auth(self::$config['security']);
         }
 
-        //
-        // build URL key for Redis storage
-        $url = (isset(self::$config['query']) and self::$config['query'] == "NO") ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
 
-        self::$key = md5($_SERVER['HTTP_HOST'].$url);
-
-        self::logger(sprintf('requested URI: %s, key: %s', $url, self::$key));
+        self::$key = md5($_SERVER['HTTP_HOST'] . $url . self::$cookie);
+        self::logger(sprintf('requested URI: [%s], COOKIE: [%s], KEY: [%s]', $url, self::$cookie, self::$key));
 
         // woo commerce exceptions
-        self::$config['exclude'][] = '/map/*';
-        self::$config['exclude'][] = '/cart/*';
-        self::$config['exclude'][] = '/orders/*';
-        self::$config['exclude'][] = '/checkout/*';
-        self::$config['exclude'][] = '/my-account/*';
+        // self::$config['exclude'][] = '/map/*';
+        // self::$config['exclude'][] = '/cart/*';
+        // self::$config['exclude'][] = '/orders/*';
+        // self::$config['exclude'][] = '/checkout/*';
+        // self::$config['exclude'][] = '/my-account/*';
 
         //
         // check URL exceptions
@@ -213,7 +216,7 @@ class redis_light
 
         // cache the page
         else {
-            self::logger('rendering page with WordPress');
+            self::logger('storing new page' . $_SERVER['REQUEST_URI']);
 
             header('Cache: storing new data');
 
@@ -228,11 +231,15 @@ class redis_light
     public static function defaults()
     {
         self::$config = [
-            'host'     => 'redis.host',
-            'port'     => 6379,
-            'security' => null,
-            'timeout'  => 1,
+            'host'     => isset($_ENV['PAGECACHE_HOST'])     ? $_ENV['PAGECACHE_HOST']         : 'redis',
+            'port'     => isset($_ENV['PAGECACHE_PORT'])     ? $_ENV['PAGECACHE_PORT']         : 6379,
+            'timeout'  => isset($_ENV['PAGECACHE_TTIMEOUT']) ? $_ENV['PAGECACHE_TTIMEOUT']     : 0.5,
+            'query'    => isset($_ENV['PAGECACHE_QUERY'])    ? (bool) $_ENV['PAGECACHE_QUERY'] : false,
+            'debug'    => isset($_ENV['PAGECACHE_DEBUG'])    ? (bool) $_ENV['PAGECACHE_DEBUG'] : false,
+            'security' => isset($_ENV['PAGECACHE_AUTH']) && trim($_ENV['PAGECACHE_AUTH']) != '' ? $_ENV['PAGECACHE_AUTH'] : null,
         ];
+
+        self::$config['exclude'] = [];
 
         return self::$config;
     }
@@ -243,10 +250,8 @@ class redis_light
      */
     public static function logger($message)
     {
-        self::$cc++;
-
-        if (isset($_ENV['REDIS_CACHE_LOG']) && $_ENV['REDIS_CACHE_LOG'] == 1) {
-            file_put_contents('php://stderr', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);    
+        if (self::$config['debug']) {
+            file_put_contents('php://stdout', 'PAGECACHE: ' . $message);
         }
     }
 
@@ -257,11 +262,11 @@ class redis_light
     public static function callback($buffer)
     {
         // do not store output if empty
-       // do not store output if starts with { - indicating json object
-       // so we dont want to store it in Redis
-       if (trim($buffer) == '' or substr(trim($buffer), 0, 1) == '{') {
-           return $buffer;
-       }
+        // do not store output if starts with { - indicating json object
+        // so we dont want to store it in Redis
+        if (trim($buffer) == '' or substr(trim($buffer), 0, 1) == '{') {
+            return $buffer;
+        }
 
         // attempt to store content in the cache
         $response_code = http_response_code();
@@ -269,6 +274,9 @@ class redis_light
         if (in_array($response_code, [ '200', '404' ]) and self::$redis->set(self::$key, $buffer)) {
             self::$redis->set(self::$key.'-CODE', $response_code);
             self::$redis->set(self::$key.'-HEAD', json_encode(headers_list()));
+
+            // set key expiration
+            self::$redis->ttl(self::$cookie == '' ? "expire in 1 week" : "expire in 30 minutes");
 
             // log syslog message if cannot store objects in redis
             self::logger('storing content in the cache. page count: '.self::$redis->dbSize());
