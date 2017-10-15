@@ -39,7 +39,7 @@ class redis_light
     {
         self::$config = self::defaults();
 
-        self::logger('Starting Redis caching engine connection...');
+        self::logger('connecting to redis [' . self::$config['host'] . ']');
 
         //
         // do not run if explicitly requested
@@ -197,7 +197,7 @@ class redis_light
          *
          */
         if (self::$redis->exists(self::$key)) {
-            self::logger('fetching content from the cache. key: '.self::$key);
+            self::logger('cached page found! fetching content, key: [' . self::$key . ']');
 
             http_response_code(self::$redis->get(self::$key.'-CODE'));
 
@@ -216,7 +216,7 @@ class redis_light
 
         // cache the page
         else {
-            self::logger('storing new page' . $_SERVER['REQUEST_URI']);
+            self::logger('cached page not found! [' . $_SERVER['REQUEST_URI'] . ']');
 
             header('Cache: storing new data');
 
@@ -276,10 +276,12 @@ class redis_light
             self::$redis->set(self::$key.'-HEAD', json_encode(headers_list()));
 
             // set key expiration
-            self::$redis->ttl(self::$cookie == '' ? "expire in 1 week" : "expire in 30 minutes");
+            $ttl = self::$cookie == '' ? "expire in 1 week" : "expire in 30 minutes";
+
+            self::$redis->ttl($ttl);
 
             // log syslog message if cannot store objects in redis
-            self::logger('storing content in the cache. page count: '.self::$redis->dbSize());
+            self::logger(sprintf('caching content for [%s]. database size: [%d]', $ttl, self::$redis->dbSize()));
         } else {
             # self::$redis->delete(self::$key);
             self::logger('Redis cannot store data. Memory: '.self::$redis->info('used_memory_human'));
