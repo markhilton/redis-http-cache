@@ -28,6 +28,7 @@ class redis_light
     public static $key    = null; // cache key
     public static $redis  = null; // redis instance
     public static $config = null; // configuration array
+    public static $db     = 0;    // current redis db
     public static $cookie = '';   // unique user cookie
 
 
@@ -161,9 +162,9 @@ class redis_light
 
         // fetch redis database ID for current host
         if (isset($domains[ $_SERVER['HTTP_HOST'] ]['id'])) {
-            $db = $domains[ $_SERVER['HTTP_HOST'] ]['id'];
+            self::$db = $domains[ $_SERVER['HTTP_HOST'] ]['id'];
 
-            self::logger(sprintf('current domain [id: %d]: %s found in cache. Total hostname(s) stored: %d', $db, $_SERVER['HTTP_HOST'], count($domains)));
+            self::logger(sprintf('current domain [id: %d]: %s found in cache. Total hostname(s) stored: %d', self::$db, $_SERVER['HTTP_HOST'], count($domains)));
         }
 
         // create new redis database if current host does not have one
@@ -172,9 +173,9 @@ class redis_light
                 $domains = [];
             }
 
-            $db = count($domains) + 1;
+            self::$db = count($domains) + 1;
 
-            $domains[ $_SERVER['HTTP_HOST'] ]['id'] = $db;
+            $domains[ $_SERVER['HTTP_HOST'] ]['id'] = self::$db;
 
             self::logger(sprintf('current domain: %s does not exist in cache - creating. Total hostname(s) stored: %d', $_SERVER['HTTP_HOST'], count($domains)));
 
@@ -182,9 +183,9 @@ class redis_light
         }
 
         try {
-            self::$redis->select($db);    
+            self::$redis->select(self::$db);    
         } catch (Exception $e) {
-            self::logger(sprintf('ERROR: could not select database: %d for host: %s', $db, $_SERVER['HTTP_HOST']));
+            self::logger(sprintf('ERROR: could not select database: [%d] for host: [%s]', self::$db, $_SERVER['HTTP_HOST']));
             return false;
         }
         
@@ -270,6 +271,8 @@ class redis_light
 
         // attempt to store content in the cache
         $response_code = http_response_code();
+
+        self::$redis->select(self::$db); 
 
         if (in_array($response_code, [ '200', '404' ]) and self::$redis->set(self::$key, $buffer)) {
             self::$redis->set(self::$key.'-CODE', $response_code);
