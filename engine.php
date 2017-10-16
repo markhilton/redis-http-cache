@@ -240,7 +240,8 @@ class redis_light
             'security' => isset($_ENV['PAGECACHE_AUTH']) && trim($_ENV['PAGECACHE_AUTH']) != '' ? $_ENV['PAGECACHE_AUTH'] : null,
         ];
 
-        self::$config['exclude'] = [];
+        self::$config['exclude']   = [];
+        self::$config['exclude'][] = '/index.php/verbena_admin/*';
 
         return self::$config;
     }
