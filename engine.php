@@ -53,13 +53,13 @@ class redis_light
 
         //
         // do not run if request is a POST or user is logged into WordPress
-        // if ($_POST or preg_match("/wordpress_logged_in/", var_export($_COOKIE, true))) {
-        //     self::logger('NOCACHE explicitly requested. terminating...');
+        if ($_POST or preg_match("/wordpress_logged_in/", var_export($_COOKIE, true))) {
+            self::logger('NOCACHE explicitly requested. terminating...');
 
-        //     header('Cache: disengaged');
+            header('Cache: disengaged');
 
-        //     return false;
-        // }
+            return false;
+        }
 
         /**
          * start Redis cache processing
