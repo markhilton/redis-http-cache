@@ -69,32 +69,23 @@ class redis_light
          * 3. define URL storage key
          *
          */
-        $config = getcwd().'/wp-content/plugins/redis-wp-plugin/config.json';
+        self::$config = self::defaults();
 
-        if ($config = @file_get_contents($config)) {
-            self::$config = json_decode($config, true);
+        try {
+            require_once 'predis/autoload.php';
+
+            self::$redis = new Predis\Client([
+                'scheme'  => 'tcp',
+                'host'    => self::$config['host'],
+                'port'    => self::$config['port'],
+                'timeout' => self::$config['timeout'],
+            ], [ 'profile' => '3.2' ]);
         }
 
-        if (! is_array(self::$config)) {
-            self::$config = self::defaults();
-        }
-
-        // self::$redis = new Redis();
-        // $connect     = self::$redis->connect(self::$config['host'], self::$config['port'], self::$config['timeout']);
-
-        if (stream_resolve_include_path("predis/autoload.php") === false) {
-            self::logger('Cannot locate PREDIS class, Redis cache will not work');
+        catch (Predis\Network\ConnectionException $e) {
+            self::logger($e);
             return false;
         }
-
-        require 'predis/autoload.php';
-
-        self::$redis = new Predis\Client([
-            'scheme'  => 'tcp',
-            'host'    => self::$config['host'],
-            'port'    => self::$config['port'],
-            'timeout' => self::$config['timeout'],
-        ], [ 'profile' => '3.2' ]);
 
         if (trim(self::$config['security']) != '') {
             self::$redis->auth(self::$config['security']);
@@ -228,10 +219,10 @@ class redis_light
     public static function defaults()
     {
         self::$config = [
-            'host'     => 'redis.host',
-            'port'     => 6379,
-            'security' => null,
-            'timeout'  => 1,
+            'host'     => isset($_ENV['REDIS_HOST']) ? isset($_ENV['REDIS_HOST']) : '127.0.0.1',
+            'port'     => isset($_ENV['REDIS_PORT']) ? isset($_ENV['REDIS_PORT']) : 6379,
+            'security' => isset($_ENV['REDIS_AUTH']) ? isset($_ENV['REDIS_AUTH']) : null,
+            'timeout'  => isset($_ENV['REDIS_TOUT']) ? isset($_ENV['REDIS_TOUT']) : 1,
         ];
 
         return self::$config;
@@ -245,7 +236,7 @@ class redis_light
     {
         self::$cc++;
 
-        if (isset($_ENV['REDIS_CACHE_LOG']) && $_ENV['REDIS_CACHE_LOG'] == 1) {
+        if (isset($_ENV['REDIS_LOG']) && $_ENV['REDIS_LOG'] == "true") {
             file_put_contents('php://stderr', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);    
         }
     }
