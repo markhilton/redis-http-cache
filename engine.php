@@ -219,10 +219,10 @@ class redis_light
     public static function defaults()
     {
         self::$config = [
-            'host'     => isset($_ENV['REDIS_HOST']) ? isset($_ENV['REDIS_HOST']) : '127.0.0.1',
-            'port'     => isset($_ENV['REDIS_PORT']) ? isset($_ENV['REDIS_PORT']) : 6379,
-            'security' => isset($_ENV['REDIS_AUTH']) ? isset($_ENV['REDIS_AUTH']) : null,
-            'timeout'  => isset($_ENV['REDIS_TOUT']) ? isset($_ENV['REDIS_TOUT']) : 1,
+            'host'     => isset($_ENV['REDIS_HOST']) ? $_ENV['REDIS_HOST'] : '127.0.0.1',
+            'port'     => isset($_ENV['REDIS_PORT']) ? $_ENV['REDIS_PORT'] : 6379,
+            'security' => isset($_ENV['REDIS_AUTH']) ? $_ENV['REDIS_AUTH'] : null,
+            'timeout'  => isset($_ENV['REDIS_TOUT']) ? $_ENV['REDIS_TOUT'] : 1,
         ];
 
         return self::$config;
