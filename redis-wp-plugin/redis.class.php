@@ -15,29 +15,9 @@ class rediscache {
 	 *
 	 */
 	public static function check_snippet() {
-
 		if (defined('_REDIS_LIGHT_CACHE_PREPEND')) {
 			return true;
 		}
-
-        $check   = false;
-	    $index   = @file('../index.php');
-        $snippet = "@include 'wp-content/plugins/redis-light-speed-cache/engine.php';";
-
-        foreach ($index as $key => $val) {
-            if (trim($val) == $snippet) {
-                $check = true;
-            }
-        }
-
-        if ($check === false) {
-            self::$class  = 'error';
-            self::$notice = 'Redis cache snippet not detected! &nbsp; Please install <a href="/wp-admin/admin.php?page=rediscache&tab=setup">code snippet</a> to start leveraging Redis cache engine.';
-
-            add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-        }
-
-        return $check;
 	}
 
 
@@ -47,20 +27,14 @@ class rediscache {
 	 */
 	public static function load_config()
 	{
-        $config = __DIR__.'/config.json';
+        self::$config = [
+            'host'     => isset($_ENV['REDIS_HOST']) ? $_ENV['REDIS_HOST'] : '127.0.0.1',
+            'port'     => isset($_ENV['REDIS_PORT']) ? $_ENV['REDIS_PORT'] : 6379,
+            'security' => isset($_ENV['REDIS_AUTH']) ? $_ENV['REDIS_AUTH'] : null,
+            'timeout'  => isset($_ENV['REDIS_TOUT']) ? $_ENV['REDIS_TOUT'] : 1,
+        ];
 
-        if ($config = @file_get_contents($config)) {
-            self::$config = json_decode($config, true);
-        }
-
-        if (! is_array(self::$config)) {
-            self::$config = [
-            	'host'    => 'localhost',
-            	'port'    => 6379,
-            	'timeout' => 1,
-            	'status'  => 'ON',
-            ];
-        }
+        return self::$config;
 	}
 
 
@@ -71,57 +45,92 @@ class rediscache {
 	 */
 	public static function connect()
 	{
-	    try {
-	    	if (extension_loaded('redis')) { 
-		    	self::load_config();	    	
-		        self::$redis = new Redis();
-		        
-		        $connect = @self::$redis->connect(self::$config['host'], self::$config['port'], self::$config['timeout']);
+		self::$config = self::load_config();
 
-		        if (trim(self::$config['security']) != '') {
-		            self::$redis->auth(self::$config['security']);
-		        }
-		    } else {
-		    	self::$status = 'OFF';	
-		    }
-	    }
-	    // terminate script if cannot connect to Redis server
-	    // and gracefully fall back into regular WordPress
-	    catch (Exception $e) {
-	        self::$status = 'OFF';
-	    }
+        try {
+            require_once 'predis/autoload.php';
 
+            self::$redis = new Predis\Client([
+                'scheme'  => 'tcp',
+                'host'    => self::$config['host'],
+                'port'    => self::$config['port'],
+                'timeout' => self::$config['timeout'],
+            ], [ 'profile' => '3.2' ]);
 
-	    // connect to Redis storage
-	    if ($connect) {
-	        self::$redis->select(0);
+            self::$config['status'] = 'ON';
+        }
 
-	        $domains = json_decode(self::$redis->get('domains'), true);
-
-	        // make sure $domains is an array even if empty
-	        if (! is_array($domains)) {
-	        	$domains = [];
-	        }
-
-			self::$info['pages'] = 0;
-	        self::$info          = self::$redis->info();
-	        self::$status        = self::$config['status'];
-
-            $db = $domains[ $domain ]['id'];
-
-            self::$redis->select($db);
-            self::$info['pages'] = (int) self::$redis->dbSize();
-	    } else {
+        catch (Predis\Network\ConnectionException $e) {
 	        // throw message - cannot connect with redis
 	        rediscache::$class  = 'error';
 	        rediscache::$notice = 'Cannot connect to Redis storage engine. Please check your <a href="/wp-admin/admin.php?page=rediscache&tab=config">configuration</a>';
 
 	        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
 
-	        self::$status = 'OFF';
-	    }
+	        self::$config['status'] = 'OFF';
+            self::logger($e);
+
+            return false;
+        }
+
+        if (trim(self::$config['security']) != '') {
+            self::$redis->auth(self::$config['security']);
+        }
+
+	    // connect to Redis storage
+        self::$redis->select(0);
+
+        $domains = json_decode(self::$redis->get('domains'), true);
+
+        // fetch redis database ID for current host
+        if (isset($domains[ $_SERVER['HTTP_HOST'] ]['id'])) {
+            $db = $domains[ $_SERVER['HTTP_HOST'] ]['id'];
+
+            self::logger(sprintf('current domain [id: %d]: %s found in cache. Total hostname(s) stored: %d', 
+            	$db, $_SERVER['HTTP_HOST'], count($domains)));
+        }
+
+        // create new redis database if current host does not have one
+        else {
+            if (! is_array($domains)) {
+                $domains = [];
+            }
+
+            $db = count($domains) + 1;
+
+            $domains[ $_SERVER['HTTP_HOST'] ]['id'] = $db;
+
+            self::logger(sprintf('current domain: %s does not exist in cache - creating. Total hostname(s) stored: %d', 
+            	$_SERVER['HTTP_HOST'], count($domains)));
+
+            self::$redis->set('domains', json_encode($domains));
+        }
+
+        try {
+            self::$redis->select($db);    
+			self::$info['pages'] = 0;
+	        self::$info          = self::$redis->info();
+	        self::$status        = self::$config['status'];
+	        self::$info['pages'] = (int) self::$redis->dbSize();
+        } 
+
+        catch (Exception $e) {
+            self::logger(sprintf('ERROR: could not select database: %d for host: %s', $db, $_SERVER['HTTP_HOST']));
+            return false;
+        }
 	}
 
+
+    /*
+     * system log
+     *
+     */
+    public static function logger($message)
+    {
+        if (isset($_ENV['REDIS_LOG']) && $_ENV['REDIS_LOG'] == "true") {
+            file_put_contents('php://stderr', sprintf("%s\n", $message), FILE_APPEND);    
+        }
+    }
 
 
 	/**
