@@ -351,7 +351,7 @@ class rediscache {
 	    $url = $domain.str_replace($path, '/', parse_url($permalink, PHP_URL_PATH));
 	    $key = md5($url);
 
-	    self::$redis->delete($key); # die($key.' - '.$url); // DEBUG
+	    self::$redis->del($key); # die($key.' - '.$url); // DEBUG
 	}
 
 

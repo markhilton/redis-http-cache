@@ -264,7 +264,7 @@ class redis_light
             // log syslog message if cannot store objects in redis
             self::logger('storing content in the cache. page count: '.self::$redis->dbSize());
         } else {
-            # self::$redis->delete(self::$key);
+            self::$redis->del(self::$key);
             self::logger('Redis cannot store data. Memory: '.self::$redis->info('used_memory_human'));
         }
 
