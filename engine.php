@@ -231,7 +231,7 @@ class redis_light
             'REDIS_AUTH'    => $_ENV['REDIS_AUTH']    ?? '',
             'REDIS_WAIT'    => $_ENV['REDIS_WAIT']    ?? 1,
             'REDIS_QUERY'   => $_ENV['REDIS_QUERY']   ?? 0,
-            'REDIS_EXCLUDE' => $_ENV['REDIS_EXCLUDE'] ?? '',
+            'REDIS_EXCLUDE' => $_ENV['REDIS_EXCLUDE'] ?? [],
         ];
 
         $file    = $_SERVER['DOCUMENT_ROOT'] . ($_ENV['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
