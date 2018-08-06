@@ -8,11 +8,11 @@
 
 
 <p></p>
-<p><textarea cols="80" rows="10" name="exceptions"><?php echo join("\r\n", rediscache::$config['exclude']); ?></textarea></p>
+<p><textarea cols="80" rows="10" name="REDIS_EXCLUDE"><?php echo join("\r\n", rediscache::$config['REDIS_EXCLUDE']); ?></textarea></p>
 <p>
 	Ignore query parameters: &nbsp;
-    <input type="radio" name="query" value="YES" <?php echo rediscache::$config['query'] != 'NO' ? 'checked' : ''; ?>> YES
-    <input type="radio" name="query" value="NO"  <?php echo rediscache::$config['query'] == 'NO' ? 'checked' : ''; ?>> NO
+    <input type="radio" name="REDIS_QUERY" value="1" <?php echo rediscache::$config['REDIS_QUERY'] ? 'checked' : ''; ?>> YES
+    <input type="radio" name="REDIS_QUERY" value="0"  <?php echo rediscache::$config['REDIS_QUERY'] ? '' : 'checked'; ?>> NO
 </p>
 
 <p><input type="submit" name="exclude" class="button button-primary button-large" value="Exclude"></p>

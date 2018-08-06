@@ -4,7 +4,7 @@
     <tr>
         <th>Status:</th>
         <td>
-            <?php if (rediscache::$status == 'ON'): ?>
+            <?php if (rediscache::$config['REDIS_STATUS']): ?>
             <span class="green">[ ENGAGED ]</span>
             <?php else: ?>
             <span class="red">[ DISENGAGED ]</span>

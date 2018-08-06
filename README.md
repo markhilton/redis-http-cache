@@ -16,35 +16,28 @@ php_admin_value[auto_prepend_file] = "redis-http-cache/prepend.php"
 
 This will trigger prepend.php script every PHP request. Prepend.php will then determine if required REDIS environment variable is set to "ON" and if the request is routed to /index.php file. If both of those conditions are met then engine.php is triggered in order to either store or serve content to/from Redis memory cache. 
 
+### Environment variables
+
+If defined, will render WordPress configuration variable read-only.
+
+```env
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_AUTH=null
+REDIS_WAIT=1
+REDIS_LOG=0
+REDIS_QUERY=1
+REDIS_EXCLUDE=base64_encoded_json_array_of_urls
+REDIS_CONFIG_PATH=/wp-content/uploads/redis-config.json
+REDIS_ENCRYPT_KEY=simple_secret_key
+REDIS_ENCRYPT_SECRET=simple_secret_iv
+```
+
 ### Installation
 
 Redis HTTP cache WordPress plugin component is not required to incorporate cache engine into WordPress site. The PHP auto prepend component will capture website HTML content output, automatically store it into memory and serve it on all consequential requests.
 
 However WordPress plugin is required in order to manage no cache page exceptions per individual site as well as flushing cache storage for individual site.
-
-### Debug
-
-Redis HTTP cache will log its activity into syslog if detects presence of /tmp/.redis.log file. The log information is extensive and may eat up hard drive space quickly, so it is only intended for problem debugging purposes.
-
-#### Start debugging 
-
-```bash
-touch /tmp/.redis.log 
-```
-
-to start logging Redis HTTP cache messages into syslog. To preview messages run:
-
-```bash
-tail -f /var/log/messages or tail -f /var/log/syslog
-```
-
-#### Stop debugging 
-
-```bash
-rm /tmp/.redis.log 
-```
-
-to remove Redis HTTP cache log trigger and stop logging messages into syslog. 
 
 ## Redis PHP WordPress component
 

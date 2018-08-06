@@ -28,11 +28,29 @@ class rediscache {
 	public static function load_config()
 	{
         self::$config = [
-            'host'     => isset($_ENV['REDIS_HOST']) ? $_ENV['REDIS_HOST'] : '127.0.0.1',
-            'port'     => isset($_ENV['REDIS_PORT']) ? $_ENV['REDIS_PORT'] : 6379,
-            'security' => isset($_ENV['REDIS_AUTH']) ? $_ENV['REDIS_AUTH'] : null,
-            'timeout'  => isset($_ENV['REDIS_TOUT']) ? $_ENV['REDIS_TOUT'] : 1,
+            'REDIS_STATUS'  => true,
+            'REDIS_HOST'    => $_ENV['REDIS_HOST']    ?? '127.0.0.1',
+            'REDIS_PORT'    => $_ENV['REDIS_PORT']    ?? 6379,
+            'REDIS_AUTH'    => $_ENV['REDIS_AUTH']    ?? '',
+            'REDIS_WAIT'    => $_ENV['REDIS_WAIT']    ?? 1,
+            'REDIS_QUERY'   => $_ENV['REDIS_QUERY']   ?? 0,
+            'REDIS_EXCLUDE' => $_ENV['REDIS_EXCLUDE'] ?? '',
         ];
+
+        $file    = $_SERVER['DOCUMENT_ROOT'] . ($_ENV['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
+        $options = @json_decode(@self::simple_crypt(@file_get_contents($file, true), 'd'), true); 
+        
+        # echo '<pre>pre-load'; print_r($options); # die(); // DEBUG LINE
+
+        foreach ($options as $key => $val) {
+        	// overwrite config defaults only if environment variable is not set
+        	if (isset(self::$config[ $key ]) and empty($_ENV[ $key ])) {
+        		self::$config[ $key ] = is_array($val) ? $val : trim($val);
+        		# printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
+        	}
+        }
+
+		# echo '<pre>post load'; print_r(self::$config); die(); // DEBUG LINE
 
         return self::$config;
 	}
@@ -47,35 +65,48 @@ class rediscache {
 	{
 		self::$config = self::load_config();
 
+		if (! self::$config['REDIS_STATUS']) {
+	        rediscache::$class  = 'error';
+	        rediscache::$notice = 'Redis status set to <b>OFF</b>. You can change it here: <a href="/wp-admin/admin.php?page=rediscache&tab=config">configuration</a>';
+
+	        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);			
+
+	        return false;
+		}
+
         try {
             require_once 'predis/autoload.php';
 
             self::$redis = new Predis\Client([
                 'scheme'  => 'tcp',
-                'host'    => self::$config['host'],
-                'port'    => self::$config['port'],
-                'timeout' => self::$config['timeout'],
-            ], [ 'profile' => '3.2' ]);
+                'host'    => self::$config['REDIS_HOST'],
+                'port'    => self::$config['REDIS_PORT'],
+                'timeout' => self::$config['REDIS_WAIT'],
+            ]);
+			
+            // cannot for the love of God catch this exception - please HELP!
+			if (trim(self::$config['REDIS_AUTH']) != '') {
+				# self::$redis->auth( self::$config['REDIS_AUTH'] );
+			}
 
-            self::$config['status'] = 'ON';
+			self::$redis->connect();
+            self::$config['REDIS_STATUS'] = 1;
         }
 
-        catch (Predis\Network\ConnectionException $e) {
+        catch (Predis\Connection\ConnectionException $exception) {
 	        // throw message - cannot connect with redis
 	        rediscache::$class  = 'error';
 	        rediscache::$notice = 'Cannot connect to Redis storage engine. Please check your <a href="/wp-admin/admin.php?page=rediscache&tab=config">configuration</a>';
 
 	        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
 
-	        self::$config['status'] = 'OFF';
+	        self::$config['REDIS_STATUS'] = 0;
             self::logger($e);
 
             return false;
         }
 
-        if (trim(self::$config['security']) != '') {
-            self::$redis->auth(self::$config['security']);
-        }
+
 
 	    // connect to Redis storage
         self::$redis->select(0);
@@ -151,31 +182,27 @@ class rediscache {
 	 * 
 	 */
 	public static function post_actions() {
+        $file    = $_SERVER['DOCUMENT_ROOT'] . ($_ENV['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
+        $options = @json_decode(@self::simple_crypt(@file_get_contents($file, true), 'd'), true);
 
 		// ACTION: update configuration file
 		//
 	    if (isset($_POST['update'])) {
-	        $options = [
-	            'host' => null, 'port' => null, 'timeout' => null, 'security' => null, 'status' => 'OFF', 'query' => 'YES', 'exclude' => [],
-	        ];
-
 	        // create default options
 	        foreach ($_POST as $key => $val) {
-	            if (array_key_exists($key, $options)) {
-	                $options[$key] = trim($val);
-	            }
+                $options[ $key ] = trim($val);
 	        }
 
-	        if (@file_put_contents(__DIR__.'/config.json', json_encode($options, JSON_PRETTY_PRINT))) {
+	        if (@file_put_contents($file, @self::simple_crypt(json_encode($options, JSON_PRETTY_PRINT), 'e'))) {
 	            // throw message - redis config updated sucessfully
 		        rediscache::$class  = 'updated';
 		        rediscache::$notice = 'Configuration has been updated';
 
 		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
 	        } else {
-	            // throw error - cannot save config file: config.json
+	            // throw error - cannot save config file: redis-config.json
 		        rediscache::$class  = 'error';
-		        rediscache::$notice = 'Could not update configuration file. &nbsp;Please make sure this file is <b>writable</b>: &nbsp;'.__DIR__.'/config.json';
+		        rediscache::$notice = 'Could not update configuration file. &nbsp;Please make sure this file is <b>writable</b>: &nbsp;' . $file;
 
 		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
 	        }
@@ -184,33 +211,23 @@ class rediscache {
 
 		// ACTION: update URL exclusions
 		//
-	    if (isset($_POST['exclude'])) {
+	    if (isset($_POST['REDIS_EXCLUDE'])) {
+	        $options['REDIS_QUERY']   = $_POST['REDIS_QUERY'];
+	        $options['REDIS_EXCLUDE'] = explode("\r\n", $_POST['REDIS_EXCLUDE']);
 
-	        $options = json_decode(@file_get_contents(__DIR__.'/config.json'), true);
-
-	        $options['query']   = $_POST['query'];
-	        $options['exclude'] = explode("\r\n", $_POST['exceptions']);
-
-	        if (@file_put_contents(__DIR__.'/config.json', json_encode($options, JSON_PRETTY_PRINT))) {
+	        if (@file_put_contents($file, @self::simple_crypt(json_encode($options), 'e'))) {
 	            // throw message - redis config updated sucessfully
 		        rediscache::$class  = 'updated';
 		        rediscache::$notice = 'Exclusion URL list has been updated';
 
 		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
 	        } else {
-	            // throw error - cannot save config file: config.json
+	            // throw error - cannot save config file: redis-config.json
 		        rediscache::$class  = 'error';
-		        rediscache::$notice = 'Could not update configuration file. &nbsp;Please make sure this file is <b>writable</b>: &nbsp;'.__DIR__.'/config.json';
+		        rediscache::$notice = 'Could not update configuration file. &nbsp;Please make sure this file is <b>writable</b>: &nbsp;' . $file;
 
 		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
 	        }
-	    }
-
-
-		// ACTION: install code snippet
-		//
-	    if (isset($_POST['install']) and $_POST['install'] == 'Insert Snippet') {
-	        self::install_snippet();
 	    }
 
 
@@ -237,94 +254,6 @@ class rediscache {
 		//
 	}
 
-
-	/**
-	 * Install plugin snippet
-	 *
-	 */
-	function install_snippet()
-	{
-        if (is_writable('../index.php')) {
-            $output  = array();
-            $content = @file('../index.php');
-
-            foreach ($content as $line) {
-                $output[] = $line;
-
-                if (substr(trim($line), 0, 5) == '<?php') {
-                    $output[] = "\r\n@include 'wp-content/plugins/redis-light-speed-cache/engine.php';\r\n\r\n";
-                }
-            }
-
-            if (rename('../index.php', __DIR__.'/index.orig') ) {
-                
-                if (file_put_contents('../index.php', join("", $output))) {
-			        rediscache::$class  = 'updated';
-			        rediscache::$notice = 'Redis cache code snippet has been sucessfully inserted';
-
-			        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-                } else {
-			        rediscache::$class  = 'error';
-			        rediscache::$notice = 'Could not update WordPress index.php';
-
-			        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-                }
-
-            } else {
-		        rediscache::$class  = 'error';
-		        rediscache::$notice = 'Could not create index.php backup';
-
-		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-            }
-
-        } else {
-	        rediscache::$class  = 'error';
-	        rediscache::$notice = 'WordPress index.php is not writable';
-
-	        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-        }
-	}
-
-
-	/**
-	 * Install plugin snippet
-	 *
-	 */
-	function remove_snippet()
-	{
-        if (is_writable('../index.php')) {
-            if (rename(__DIR__.'/index.orig', '../index.php')) {
-		        rediscache::$class  = 'updated';
-		        rediscache::$notice = 'Original index.php has been restored';
-
-		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-            } 
-
-            elseif ($content = @file_get_contents('../index.php')) {
-	            
-	            $snippet = "\r\n@include 'wp-content/plugins/redis-light-speed-cache/engine.php';\r\n\r\n";
-	            $content = str_replace($snippet, '', $content);
-
-		        rediscache::$class  = 'updated';
-		        rediscache::$notice = 'Redis cache code snippet has been sucessfully removed';
-
-		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-            } 
-
-            else {
-		        rediscache::$class  = 'error';
-		        rediscache::$notice = 'Could not automatically restore original index.php';
-
-		        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-            }
-
-        } else {
-	        rediscache::$class  = 'error';
-	        rediscache::$notice = 'WordPress index.php is not writable';
-
-	        add_action('admin_notices', [ 'rediscache', 'admin_notice' ]);
-        }
-	}
 
 
 	/**
@@ -403,5 +332,34 @@ class rediscache {
 	    self::$redis->select($db);
 
 	    return $domain;
+	}
+
+	/**
+	 * Encrypt and decrypt
+	 * 
+	 * @author Nazmul Ahsan <n.mukto@gmail.com>
+	 * @link http://nazmulahsan.me/simple-two-way-function-encrypt-decrypt-string/
+	 *
+	 * @param string $string string to be encrypted/decrypted
+	 * @param string $action what to do with this? e for encrypt, d for decrypt
+	 */
+	public static function simple_crypt( $string, $action = 'e' ) {
+	    // you may change these values to your own
+	    $secret_key = $_ENV['REDIS_ENCRYPT_KEY']    ?? 'simple_secret_key';
+	    $secret_iv  = $_ENV['REDIS_ENCRYPT_SECRET'] ?? 'simple_secret_iv';
+	 
+	    $output         = false;
+	    $encrypt_method = "AES-256-CBC";
+	    $key            = hash( 'sha256', $secret_key );
+	    $iv             = substr( hash( 'sha256', $secret_iv ), 0, 16 );
+	 
+	    if ( $action == 'e' ) {
+	        $output = base64_encode( openssl_encrypt( $string, $encrypt_method, $key, 0, $iv ) );
+	    }
+	    else if( $action == 'd' ){
+	        $output = openssl_decrypt( base64_decode( $string ), $encrypt_method, $key, 0, $iv );
+	    }
+	 
+	    return $output;
 	}
 }

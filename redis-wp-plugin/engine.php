@@ -1,4 +1,5 @@
 <?php
+
 /**
  * WordPress Redis Light Speed Caching Engine
  *
@@ -43,7 +44,7 @@ class redis_light
         //
         // do not run if explicitly requested
         #if (isset($_GET['NOCACHE']) or (isset($_SERVER['HTTP_CACHE_CONTROL']) && $_SERVER['HTTP_CACHE_CONTROL'] == 'max-age=0')) {
-        if (isset($_GET['NOCACHE'])) {
+        if (isset($_GET['nocache'])) {
             self::logger('NOCACHE explicitly requested. terminating...');
 
             header('Cache: skipping');
@@ -69,46 +70,51 @@ class redis_light
          * 3. define URL storage key
          *
          */
-        self::$config = self::defaults();
+        self::$config = self::load_config();
 
         try {
             require_once 'predis/autoload.php';
 
             self::$redis = new Predis\Client([
                 'scheme'  => 'tcp',
-                'host'    => self::$config['host'],
-                'port'    => self::$config['port'],
-                'timeout' => self::$config['timeout'],
-            ], [ 'profile' => '3.2' ]);
+                'host'    => self::$config['REDIS_HOST'],
+                'port'    => self::$config['REDIS_PORT'],
+                'timeout' => self::$config['REDIS_WAIT'],
+            ]);
+
+            self::$redis->connect();
+            self::$config['REDIS_STATUS'] = 1;
         }
 
-        catch (Predis\Network\ConnectionException $e) {
+        catch (Predis\Connection\ConnectionException $exception) {
+            self::$config['REDIS_STATUS'] = 0;
             self::logger($e);
             return false;
         }
 
-        if (trim(self::$config['security']) != '') {
-            self::$redis->auth(self::$config['security']);
+        if (trim(self::$config['REDIS_AUTH']) != '') {
+            self::$redis->auth(self::$config['REDIS_AUTH']);
         }
 
         //
         // build URL key for Redis storage
-        $url = (isset(self::$config['query']) and self::$config['query'] == "NO") ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
+        $url = (isset(self::$config['REDIS_QUERY']) and ! self::$config['REDIS_QUERY']) 
+            ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
 
-        self::$key = md5($_SERVER['HTTP_HOST'].$url);
+        self::$key = md5($_SERVER['HTTP_HOST'] . $url);
 
         self::logger(sprintf('requested URI: %s, key: %s', $url, self::$key));
 
         // woo commerce exceptions
-        self::$config['exclude'][] = '/map/*';
-        self::$config['exclude'][] = '/cart/*';
-        self::$config['exclude'][] = '/orders/*';
-        self::$config['exclude'][] = '/checkout/*';
-        self::$config['exclude'][] = '/my-account/*';
+        self::$config['REDIS_EXCLUDE'][] = '/map/*';
+        self::$config['REDIS_EXCLUDE'][] = '/cart/*';
+        self::$config['REDIS_EXCLUDE'][] = '/orders/*';
+        self::$config['REDIS_EXCLUDE'][] = '/checkout/*';
+        self::$config['REDIS_EXCLUDE'][] = '/my-account/*';
 
         //
         // check URL exceptions
-        foreach (self::$config['exclude'] as $exclude) {
+        foreach (self::$config['REDIS_EXCLUDE'] as $exclude) {
             if (trim($exclude) == '') {
                 continue;
             }
@@ -212,18 +218,36 @@ class redis_light
         }
     }
 
-    /*
-     * default Redis conenction config
-     *
+    /**
+     * load config
+     * 
      */
-    public static function defaults()
+    public static function load_config()
     {
         self::$config = [
-            'host'     => isset($_ENV['REDIS_HOST']) ? $_ENV['REDIS_HOST'] : '127.0.0.1',
-            'port'     => isset($_ENV['REDIS_PORT']) ? $_ENV['REDIS_PORT'] : 6379,
-            'security' => isset($_ENV['REDIS_AUTH']) ? $_ENV['REDIS_AUTH'] : null,
-            'timeout'  => isset($_ENV['REDIS_TOUT']) ? $_ENV['REDIS_TOUT'] : 1,
+            'REDIS_STATUS'  => true,
+            'REDIS_HOST'    => $_ENV['REDIS_HOST']    ?? '127.0.0.1',
+            'REDIS_PORT'    => $_ENV['REDIS_PORT']    ?? 6379,
+            'REDIS_AUTH'    => $_ENV['REDIS_AUTH']    ?? '',
+            'REDIS_WAIT'    => $_ENV['REDIS_WAIT']    ?? 1,
+            'REDIS_QUERY'   => $_ENV['REDIS_QUERY']   ?? 0,
+            'REDIS_EXCLUDE' => $_ENV['REDIS_EXCLUDE'] ?? '',
         ];
+
+        $file    = $_SERVER['DOCUMENT_ROOT'] . ($_ENV['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
+        $options = @json_decode(@self::simple_crypt(@file_get_contents($file, true), 'd'), true); 
+        
+        # echo '<pre>pre-load'; print_r($options); # die(); // DEBUG LINE
+
+        foreach ($options as $key => $val) {
+            // overwrite config defaults only if environment variable is not set
+            if (isset(self::$config[ $key ]) and empty($_ENV[ $key ])) {
+                self::$config[ $key ] = is_array($val) ? $val : trim($val);
+                # printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
+            }
+        }
+
+        # echo '<pre>post load'; print_r(self::$config); die(); // DEBUG LINE
 
         return self::$config;
     }
@@ -269,6 +293,35 @@ class redis_light
         }
 
         return $buffer;
+    }
+
+    /**
+     * Encrypt and decrypt
+     * 
+     * @author Nazmul Ahsan <n.mukto@gmail.com>
+     * @link http://nazmulahsan.me/simple-two-way-function-encrypt-decrypt-string/
+     *
+     * @param string $string string to be encrypted/decrypted
+     * @param string $action what to do with this? e for encrypt, d for decrypt
+     */
+    public static function simple_crypt( $string, $action = 'e' ) {
+        // you may change these values to your own
+        $secret_key = $_ENV['REDIS_ENCRYPT_KEY']    ?? 'simple_secret_key';
+        $secret_iv  = $_ENV['REDIS_ENCRYPT_SECRET'] ?? 'simple_secret_iv';
+     
+        $output         = false;
+        $encrypt_method = "AES-256-CBC";
+        $key            = hash( 'sha256', $secret_key );
+        $iv             = substr( hash( 'sha256', $secret_iv ), 0, 16 );
+     
+        if ( $action == 'e' ) {
+            $output = base64_encode( openssl_encrypt( $string, $encrypt_method, $key, 0, $iv ) );
+        }
+        else if( $action == 'd' ){
+            $output = openssl_decrypt( base64_decode( $string ), $encrypt_method, $key, 0, $iv );
+        }
+     
+        return $output;
     }
 
     /** **/
