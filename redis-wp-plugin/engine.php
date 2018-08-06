@@ -231,7 +231,7 @@ class redis_light
             'REDIS_AUTH'    => $_ENV['REDIS_AUTH']    ?? '',
             'REDIS_WAIT'    => $_ENV['REDIS_WAIT']    ?? 1,
             'REDIS_QUERY'   => $_ENV['REDIS_QUERY']   ?? 0,
-            'REDIS_EXCLUDE' => $_ENV['REDIS_EXCLUDE'] ?? '',
+            'REDIS_EXCLUDE' => $_ENV['REDIS_EXCLUDE'] ?? [],
         ];
 
         $file    = $_SERVER['DOCUMENT_ROOT'] . ($_ENV['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
@@ -239,12 +239,14 @@ class redis_light
         
         # echo '<pre>pre-load'; print_r($options); # die(); // DEBUG LINE
 
-        foreach ($options as $key => $val) {
-            // overwrite config defaults only if environment variable is not set
-            if (isset(self::$config[ $key ]) and empty($_ENV[ $key ])) {
-                self::$config[ $key ] = is_array($val) ? $val : trim($val);
-                # printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
-            }
+        if (is_array($options)) {
+            foreach ($options as $key => $val) {
+                // overwrite config defaults only if environment variable is not set
+                if (isset(self::$config[ $key ]) and empty($_ENV[ $key ])) {
+                    self::$config[ $key ] = is_array($val) ? $val : trim($val);
+                    # printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
+                }
+            }            
         }
 
         # echo '<pre>post load'; print_r(self::$config); die(); // DEBUG LINE

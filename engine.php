@@ -239,12 +239,14 @@ class redis_light
         
         # echo '<pre>pre-load'; print_r($options); # die(); // DEBUG LINE
 
-        foreach ($options as $key => $val) {
-            // overwrite config defaults only if environment variable is not set
-            if (isset(self::$config[ $key ]) and empty($_ENV[ $key ])) {
-                self::$config[ $key ] = is_array($val) ? $val : trim($val);
-                # printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
-            }
+        if (is_array($options)) {
+            foreach ($options as $key => $val) {
+                // overwrite config defaults only if environment variable is not set
+                if (isset(self::$config[ $key ]) and empty($_ENV[ $key ])) {
+                    self::$config[ $key ] = is_array($val) ? $val : trim($val);
+                    # printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
+                }
+            }            
         }
 
         # echo '<pre>post load'; print_r(self::$config); die(); // DEBUG LINE
