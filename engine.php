@@ -16,7 +16,7 @@ if (redis_light::cache()) {
     ob_start([ 'redis_light', 'callback' ]);
 
     /** Loads the WordPress Environment and Template */
-    require getcwd().'/wp-blog-header.php';
+    require $_SERVER['DOCUMENT_ROOT'] . '/wp-blog-header.php';
 
     ob_end_flush();
 
@@ -98,7 +98,7 @@ class redis_light
 
         //
         // build URL key for Redis storage
-        $url = (isset(self::$config['REDIS_QUERY']) and ! self::$config['REDIS_QUERY']) 
+        $url = (isset(self::$config['REDIS_QUERY']) and ! self::$config['REDIS_QUERY'])
             ? $_SERVER['REQUEST_URI'] : strtok($_SERVER['REQUEST_URI'], '?');
 
         self::$key = md5($_SERVER['HTTP_HOST'] . $url);
@@ -176,12 +176,12 @@ class redis_light
         }
 
         try {
-            self::$redis->select($db);    
+            self::$redis->select($db);
         } catch (Exception $e) {
             self::logger(sprintf('ERROR: could not select database: %d for host: %s', $db, $_SERVER['HTTP_HOST']));
             return false;
         }
-        
+
 
         /**
          * cache requests and server cached content
@@ -220,7 +220,7 @@ class redis_light
 
     /**
      * load config
-     * 
+     *
      */
     public static function load_config()
     {
@@ -235,8 +235,8 @@ class redis_light
         ];
 
         $file    = $_SERVER['DOCUMENT_ROOT'] . ($_ENV['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
-        $options = @json_decode(@self::simple_crypt(@file_get_contents($file, true), 'd'), true); 
-        
+        $options = @json_decode(@self::simple_crypt(@file_get_contents($file, true), 'd'), true);
+
         # echo '<pre>pre-load'; print_r($options); # die(); // DEBUG LINE
 
         if (is_array($options)) {
@@ -246,7 +246,7 @@ class redis_light
                     self::$config[ $key ] = is_array($val) ? $val : trim($val);
                     # printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
                 }
-            }            
+            }
         }
 
         # echo '<pre>post load'; print_r(self::$config); die(); // DEBUG LINE
@@ -263,7 +263,7 @@ class redis_light
         self::$cc++;
 
         if (isset($_ENV['REDIS_LOG']) && $_ENV['REDIS_LOG'] == "true") {
-            file_put_contents('php://stderr', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);    
+            file_put_contents('php://stderr', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);
         }
     }
 
@@ -299,7 +299,7 @@ class redis_light
 
     /**
      * Encrypt and decrypt
-     * 
+     *
      * @author Nazmul Ahsan <n.mukto@gmail.com>
      * @link http://nazmulahsan.me/simple-two-way-function-encrypt-decrypt-string/
      *
@@ -310,19 +310,19 @@ class redis_light
         // you may change these values to your own
         $secret_key = $_ENV['REDIS_ENCRYPT_KEY']    ?? 'simple_secret_key';
         $secret_iv  = $_ENV['REDIS_ENCRYPT_SECRET'] ?? 'simple_secret_iv';
-     
+
         $output         = false;
         $encrypt_method = "AES-256-CBC";
         $key            = hash( 'sha256', $secret_key );
         $iv             = substr( hash( 'sha256', $secret_iv ), 0, 16 );
-     
+
         if ( $action == 'e' ) {
             $output = base64_encode( openssl_encrypt( $string, $encrypt_method, $key, 0, $iv ) );
         }
         else if( $action == 'd' ){
             $output = openssl_decrypt( base64_decode( $string ), $encrypt_method, $key, 0, $iv );
         }
-     
+
         return $output;
     }
 
