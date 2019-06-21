@@ -226,15 +226,15 @@ class redis_light
     {
         self::$config = [
             'REDIS_STATUS'  => true,
-            'REDIS_HOST'    => $_ENV['REDIS_HOST']    ?? '127.0.0.1',
-            'REDIS_PORT'    => $_ENV['REDIS_PORT']    ?? 6379,
-            'REDIS_AUTH'    => $_ENV['REDIS_AUTH']    ?? '',
-            'REDIS_WAIT'    => $_ENV['REDIS_WAIT']    ?? 1,
-            'REDIS_QUERY'   => $_ENV['REDIS_QUERY']   ?? 0,
-            'REDIS_EXCLUDE' => $_ENV['REDIS_EXCLUDE'] ?? [],
+            'REDIS_HOST'    => $_SERVER['REDIS_HOST']    ?? '127.0.0.1',
+            'REDIS_PORT'    => $_SERVER['REDIS_PORT']    ?? 6379,
+            'REDIS_AUTH'    => $_SERVER['REDIS_AUTH']    ?? '',
+            'REDIS_WAIT'    => $_SERVER['REDIS_WAIT']    ?? 1,
+            'REDIS_QUERY'   => $_SERVER['REDIS_QUERY']   ?? 0,
+            'REDIS_EXCLUDE' => $_SERVER['REDIS_EXCLUDE'] ?? [],
         ];
 
-        $file    = $_SERVER['DOCUMENT_ROOT'] . ($_ENV['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
+        $file    = $_SERVER['DOCUMENT_ROOT'] . ($_SERVER['REDIS_CONFIG_PATH'] ?? '/wp-content/uploads/redis-config.json');
         $options = @json_decode(@self::simple_crypt(@file_get_contents($file, true), 'd'), true);
 
         # echo '<pre>pre-load'; print_r($options); # die(); // DEBUG LINE
@@ -242,7 +242,7 @@ class redis_light
         if (is_array($options)) {
             foreach ($options as $key => $val) {
                 // overwrite config defaults only if environment variable is not set
-                if (isset(self::$config[ $key ]) and empty($_ENV[ $key ])) {
+                if (isset(self::$config[ $key ]) and empty($_SERVER[ $key ])) {
                     self::$config[ $key ] = is_array($val) ? $val : trim($val);
                     # printf("key: [ %s ], val: [ %s ]\n", $key, $val); // DEBUG LINE
                 }
@@ -262,7 +262,7 @@ class redis_light
     {
         self::$cc++;
 
-        if (isset($_ENV['REDIS_LOG']) && $_ENV['REDIS_LOG'] == "true") {
+        if (isset($_SERVER['REDIS_LOG']) && $_SERVER['REDIS_LOG'] == "true") {
             file_put_contents('php://stderr', sprintf("STEP %d: %s\n", self::$cc, $message), FILE_APPEND);
         }
     }
@@ -308,8 +308,8 @@ class redis_light
      */
     public static function simple_crypt( $string, $action = 'e' ) {
         // you may change these values to your own
-        $secret_key = $_ENV['REDIS_ENCRYPT_KEY']    ?? 'simple_secret_key';
-        $secret_iv  = $_ENV['REDIS_ENCRYPT_SECRET'] ?? 'simple_secret_iv';
+        $secret_key = $_SERVER['REDIS_ENCRYPT_KEY']    ?? 'simple_secret_key';
+        $secret_iv  = $_SERVER['REDIS_ENCRYPT_SECRET'] ?? 'simple_secret_iv';
 
         $output         = false;
         $encrypt_method = "AES-256-CBC";
